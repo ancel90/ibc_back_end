@@ -1,10 +1,12 @@
 const Parser = require('rss-parser');
 const parser = new Parser();
 const express = require('express');
+const cors = require('cors');
 const { MongoClient } = require('mongodb');
 require('dotenv').config();
 
 const app = express();
+app.use(cors());
 app.use(express.json());
 
 const uri = process.env.MONGODB_URI;
