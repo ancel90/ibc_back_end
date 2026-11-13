@@ -4,13 +4,20 @@
       {
         "src": "index.js",
         "use": "@vercel/node"
+      },
+      {
+        "src": "api/fetch-rss.js",
+        "use": "@vercel/node"
       }
     ],
     "routes": [
+      {
+        "src": "/api/fetch-rss",
+        "dest": "/api/fetch-rss.js"
+      },
       {
         "src": "/(.*)",
         "dest": "index.js"
       }
     ]
   }
-  

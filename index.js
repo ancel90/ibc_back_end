@@ -1,5 +1,3 @@
-const Parser = require('rss-parser');
-const parser = new Parser();
 const express = require('express');
 const cors = require('cors');
 const { MongoClient } = require('mongodb');
@@ -57,63 +55,7 @@ app.get('/api/data', async (req, res) => {
   }
 });
 
-// Route pour récupérer et enregistrer les flux RSS du jour
-app.get('/api/fetch-rss', async (req, res) => {
-  try {
-    const database = await connectDB();
-
-    // 1. Génération de la date au format aaaammdd
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, '0');
-    const day = String(now.getDate()).padStart(2, '0');
-    const dateStr = `${year}${month}${day}`;
-
-    // 2. Liste des flux RSS (Le Monde et Le Figaro)
-    const feeds = [
-      'https://www.lemonde.fr/rss/une.xml',
-      'https://s1.rss.figaro.fr/rss/figaro_actualites.xml'
-    ];
-
-    let articles = [];
-
-    // 3. Lecture des flux
-    for (const feedUrl of feeds) {
-      const feed = await parser.parseURL(feedUrl);
-      const sourceName = feedUrl.includes('lemonde') ? 'Le Monde' : 'Le Figaro';
-
-      for (const item of feed.items) {
-        articles.push({
-          date: dateStr,
-          source: sourceName,
-          titre: item.title || '',
-          article: item.contentSnippet || item.content || '',
-          favorable: 0
-        });
-      }
-    }
-
-    // 4. Enregistrement dans la collection dynamique (ex: 20261113_rssbrut)
-    const collectionName = `${dateStr}_rssbrut`;
-    const collection = database.collection(collectionName);
-
-    if (articles.length > 0) {
-      await collection.insertMany(articles);
-    }
-
-    res.status(200).json({
-      success: true,
-      message: `${articles.length} articles enregistrés avec succès`,
-      collection: collectionName
-    });
-
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Serveur démarré sur le port ${PORT}`);
-}); 
+});
