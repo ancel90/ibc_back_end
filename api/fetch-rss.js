@@ -29,7 +29,8 @@ function dateJourFini() {
 // Liste des flux : adresse, nom du média, pays émetteur
 const FEEDS = [
   { url: 'https://www.lemonde.fr/rss/une.xml', source: 'Le Monde', pays: 'france' },
-  { url: 'https://www.lefigaro.fr/rss/figaro_actualites.xml', source: 'Le Figaro', pays: 'france' }
+  { url: 'https://www.lefigaro.fr/rss/figaro_actualites.xml', source: 'Le Figaro', pays: 'france' },
+  { url: 'https://rss.rtbf.be/article/rss/highlight_rtbf_info.xml?source=internal', source: 'RTBF', pays: 'belgique' }
 ];
 
 module.exports = async (req, res) => {
