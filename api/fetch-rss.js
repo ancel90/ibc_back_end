@@ -68,7 +68,9 @@ module.exports = async (req, res) => {
     const collectionName = `${dateStr}_rssbrut`;
     const collection = database.collection(collectionName);
 
+    // On remplace le contenu du jour (pas de doublons)
     if (articles.length > 0) {
+      await collection.deleteMany({});
       await collection.insertMany(articles);
     }
 
