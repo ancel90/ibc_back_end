@@ -93,3 +93,37 @@ module.exports = async (req, res) => {
     for (let i = 0; i < articles.length; i += 5) {
       const lot = articles.slice(i, i + 5);
       const notes = await Promise.all(
+        lot.map(async (art) => {
+          try {
+            const valeur = await noterArticle(art.titre, art.article);
+            const { _id, ...reste } = art;
+            return { ...reste, favorable: valeur };
+          } catch (e) {
+            console.error(e.message);
+            erreurs++;
+            return null;
+          }
+        })
+      );
+      resultats.push(...notes.filter(n => n !== null));
+    }
+
+    // 3. Enregistrer (collection vidée avant, pour éviter les doublons)
+    const destName = `${dateStr}_rssfiltreia`;
+    const destCollection = database.collection(destName);
+    await destCollection.deleteMany({});
+    if (resultats.length > 0) {
+      await destCollection.insertMany(resultats);
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: `${resultats.length} articles notés sur ${articles.length} (${erreurs} erreurs)`,
+      collection: destName
+    });
+
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ success: false, error: error.message });
+  }
+};
