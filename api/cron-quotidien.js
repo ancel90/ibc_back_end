@@ -1,6 +1,6 @@
 module.exports = async (req, res) => {
   const base = `https://${req.headers.host}`;
-  const etapes = ['fetch-rss', 'filtremotscles', 'filtreia'];
+  const etapes = ['fetch-rss', 'filtremotscles', 'filtreia', 'resume'];
   const rapport = [];
 
   for (const etape of etapes) {

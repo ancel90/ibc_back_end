@@ -18,6 +18,10 @@
         "use": "@vercel/node"
       },
       {
+        "src": "api/resume.js",
+        "use": "@vercel/node"
+      },
+      {
         "src": "api/cron-quotidien.js",
         "use": "@vercel/node"
       }
@@ -34,6 +38,10 @@
       {
         "src": "/api/filtreia",
         "dest": "/api/filtreia.js"
+      },
+      {
+        "src": "/api/resume",
+        "dest": "/api/resume.js"
       },
       {
         "src": "/api/cron-quotidien",
