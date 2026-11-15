@@ -36,7 +36,7 @@ module.exports = async (req, res) => {
 
     const feeds = [
       'https://www.lemonde.fr/rss/une.xml',
-      'https://s1.rss.figaro.fr/rss/figaro_actualites.xml'
+      'https://www.lefigaro.fr/rss/figaro_actualites.xml'
     ];
 
     let articles = [];
