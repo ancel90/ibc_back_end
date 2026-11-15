@@ -13,6 +13,19 @@ async function connectDB() {
   return cachedDb;
 }
 
+// Date (aaaammjj) du jour qui vient de finir, à l'heure de Paris
+function dateJourFini() {
+  const aujourdhui = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Europe/Paris',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).format(new Date()); // ex : 2026-11-16
+  const [annee, mois, jour] = aujourdhui.split('-').map(Number);
+  const veille = new Date(Date.UTC(annee, mois - 1, jour - 1));
+  return veille.toISOString().slice(0, 10).replace(/-/g, '');
+}
+
 // Demande à Gemini : renvoie -1, 0 ou 1
 async function noterArticle(titre, article) {
   const prompt =
@@ -68,11 +81,7 @@ module.exports = async (req, res) => {
 
     const database = await connectDB();
 
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, '0');
-    const day = String(now.getDate()).padStart(2, '0');
-    const dateStr = `${year}${month}${day}`;
+    const dateStr = dateJourFini();
 
     // 1. Lire les articles déjà filtrés par mots clés
     const sourceName = `${dateStr}_rssfiltremotscles`;
@@ -84,37 +93,3 @@ module.exports = async (req, res) => {
     for (let i = 0; i < articles.length; i += 5) {
       const lot = articles.slice(i, i + 5);
       const notes = await Promise.all(
-        lot.map(async (art) => {
-          try {
-            const valeur = await noterArticle(art.titre, art.article);
-            const { _id, ...reste } = art;
-            return { ...reste, favorable: valeur };
-          } catch (e) {
-            console.error(e.message);
-            erreurs++;
-            return null;
-          }
-        })
-      );
-      resultats.push(...notes.filter(n => n !== null));
-    }
-
-    // 3. Enregistrer (collection vidée avant, pour éviter les doublons)
-    const destName = `${dateStr}_rssfiltreia`;
-    const destCollection = database.collection(destName);
-    await destCollection.deleteMany({});
-    if (resultats.length > 0) {
-      await destCollection.insertMany(resultats);
-    }
-
-    return res.status(200).json({
-      success: true,
-      message: `${resultats.length} articles notés sur ${articles.length} (${erreurs} erreurs)`,
-      collection: destName
-    });
-
-  } catch (error) {
-    console.error(error);
-    return res.status(500).json({ success: false, error: error.message });
-  }
-};

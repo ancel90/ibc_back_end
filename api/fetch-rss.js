@@ -13,6 +13,19 @@ async function connectDB() {
   return cachedDb;
 }
 
+// Date (aaaammjj) du jour qui vient de finir, à l'heure de Paris
+function dateJourFini() {
+  const aujourdhui = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Europe/Paris',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).format(new Date()); // ex : 2026-11-16
+  const [annee, mois, jour] = aujourdhui.split('-').map(Number);
+  const veille = new Date(Date.UTC(annee, mois - 1, jour - 1));
+  return veille.toISOString().slice(0, 10).replace(/-/g, '');
+}
+
 module.exports = async (req, res) => {
   // Gestion CORS
   res.setHeader('Access-Control-Allow-Credentials', true);
@@ -28,11 +41,7 @@ module.exports = async (req, res) => {
   try {
     const database = await connectDB();
 
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, '0');
-    const day = String(now.getDate()).padStart(2, '0');
-    const dateStr = `${year}${month}${day}`;
+    const dateStr = dateJourFini();
 
     const feeds = [
       'https://www.lemonde.fr/rss/une.xml',

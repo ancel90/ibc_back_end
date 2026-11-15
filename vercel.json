@@ -16,6 +16,10 @@
       {
         "src": "api/filtreia.js",
         "use": "@vercel/node"
+      },
+      {
+        "src": "api/cron-quotidien.js",
+        "use": "@vercel/node"
       }
     ],
     "routes": [
@@ -32,8 +36,18 @@
         "dest": "/api/filtreia.js"
       },
       {
+        "src": "/api/cron-quotidien",
+        "dest": "/api/cron-quotidien.js"
+      },
+      {
         "src": "/(.*)",
         "dest": "index.js"
+      }
+    ],
+    "crons": [
+      {
+        "path": "/api/cron-quotidien",
+        "schedule": "0 23 * * *"
       }
     ]
 }
