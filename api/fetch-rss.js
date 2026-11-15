@@ -26,6 +26,12 @@ function dateJourFini() {
   return veille.toISOString().slice(0, 10).replace(/-/g, '');
 }
 
+// Liste des flux : adresse, nom du média, pays émetteur
+const FEEDS = [
+  { url: 'https://www.lemonde.fr/rss/une.xml', source: 'Le Monde', pays: 'france' },
+  { url: 'https://www.lefigaro.fr/rss/figaro_actualites.xml', source: 'Le Figaro', pays: 'france' }
+];
+
 module.exports = async (req, res) => {
   // Gestion CORS
   res.setHeader('Access-Control-Allow-Credentials', true);
@@ -43,21 +49,16 @@ module.exports = async (req, res) => {
 
     const dateStr = dateJourFini();
 
-    const feeds = [
-      'https://www.lemonde.fr/rss/une.xml',
-      'https://www.lefigaro.fr/rss/figaro_actualites.xml'
-    ];
-
     let articles = [];
 
-    for (const feedUrl of feeds) {
-      const feed = await parser.parseURL(feedUrl);
-      const sourceName = feedUrl.includes('lemonde') ? 'Le Monde' : 'Le Figaro';
+    for (const flux of FEEDS) {
+      const feed = await parser.parseURL(flux.url);
 
       for (const item of feed.items) {
         articles.push({
           date: dateStr,
-          source: sourceName,
+          source: flux.source,
+          pays: flux.pays,
           titre: item.title || '',
           article: item.contentSnippet || item.content || '',
           favorable: 0
