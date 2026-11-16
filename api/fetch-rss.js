@@ -61,6 +61,7 @@ module.exports = async (req, res) => {
           source: flux.source,
           pays: flux.pays,
           titre: item.title || '',
+          lien: item.link || '',
           article: item.contentSnippet || item.content || '',
           favorable: 0
         });
