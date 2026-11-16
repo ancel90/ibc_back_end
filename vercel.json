@@ -22,6 +22,14 @@
         "use": "@vercel/node"
       },
       {
+        "src": "api/resumes.js",
+        "use": "@vercel/node"
+      },
+      {
+        "src": "api/publications.js",
+        "use": "@vercel/node"
+      },
+      {
         "src": "api/cron-quotidien.js",
         "use": "@vercel/node"
       }
@@ -42,6 +50,14 @@
       {
         "src": "/api/resume",
         "dest": "/api/resume.js"
+      },
+      {
+        "src": "/api/resumes",
+        "dest": "/api/resumes.js"
+      },
+      {
+        "src": "/api/publications",
+        "dest": "/api/publications.js"
       },
       {
         "src": "/api/cron-quotidien",
