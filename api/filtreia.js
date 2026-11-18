@@ -3,6 +3,12 @@ const { MongoClient } = require('mongodb');
 const uri = process.env.MONGODB_URI;
 const geminiKey = process.env.GEMINI_API_KEY;
 const MODELE = 'gemini-3.5-flash';
+
+// Réglages de robustesse
+const DELAI_APPEL_MS = 20000;   // durée maximale d'un appel à Gemini
+const BUDGET_TOTAL_MS = 45000;  // durée maximale pour noter tous les articles
+const ESSAIS_MAX = 3;           // nombre d'essais par article
+
 let cachedDb = null;
 
 async function connectDB() {
@@ -26,8 +32,51 @@ function dateJourFini() {
   return veille.toISOString().slice(0, 10).replace(/-/g, '');
 }
 
-// Demande à Gemini : renvoie -1, 0 ou 1
-async function noterArticle(titre, article) {
+const pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+// Un appel à Gemini, avec une durée maximale. Les erreurs passagères sont marquées.
+async function appelGemini(prompt, delaiMs) {
+  const controleur = new AbortController();
+  const minuteur = setTimeout(() => controleur.abort(), delaiMs);
+
+  try {
+    const reponse = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${MODELE}:generateContent`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-goog-api-key': geminiKey
+        },
+        body: JSON.stringify({
+          contents: [{ role: 'user', parts: [{ text: prompt }] }],
+          generationConfig: { temperature: 0 }
+        }),
+        signal: controleur.signal
+      }
+    );
+
+    const data = await reponse.json();
+    if (!reponse.ok) {
+      const erreur = new Error((data.error && data.error.message) || `Erreur Gemini ${reponse.status}`);
+      erreur.passager = [429, 500, 502, 503, 504].includes(reponse.status);
+      throw erreur;
+    }
+    return data;
+  } catch (e) {
+    if (e.name === 'AbortError') {
+      const erreur = new Error(`Gemini trop lent (plus de ${Math.round(delaiMs / 1000)} s)`);
+      erreur.passager = true;
+      throw erreur;
+    }
+    throw e;
+  } finally {
+    clearTimeout(minuteur);
+  }
+}
+
+// Demande à Gemini : renvoie -1, 0 ou 1 (jusqu'à ESSAIS_MAX essais)
+async function noterArticle(titre, article, fin) {
   const prompt =
     "Tu es un analyste de veille médiatique. Détermine si l'article ci-dessous est " +
     "défavorable, neutre ou favorable pour les armées françaises. " +
@@ -35,31 +84,30 @@ async function noterArticle(titre, article) {
     "Aucun autre texte.\n\n" +
     `Titre : ${titre}\nArticle : ${article}`;
 
-  const reponse = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${MODELE}:generateContent`,
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-goog-api-key': geminiKey
-      },
-      body: JSON.stringify({
-        contents: [{ role: 'user', parts: [{ text: prompt }] }],
-        generationConfig: { temperature: 0 }
-      })
-    }
-  );
+  let derniereErreur = null;
 
-  const data = await reponse.json();
-  if (!reponse.ok) {
-    throw new Error((data.error && data.error.message) || `Erreur Gemini ${reponse.status}`);
+  for (let essai = 1; essai <= ESSAIS_MAX; essai++) {
+    const reste = fin - Date.now();
+    if (reste < 3000) break;
+
+    try {
+      const data = await appelGemini(prompt, Math.min(DELAI_APPEL_MS, reste));
+
+      const parts =
+        (data.candidates && data.candidates[0] && data.candidates[0].content &&
+          data.candidates[0].content.parts) || [];
+      const texte = parts.map((p) => p.text || '').join('');
+      const trouve = texte.match(/-1|0|1/);
+      if (!trouve) throw new Error(`Réponse inattendue : ${texte}`);
+      return parseInt(trouve[0], 10);
+    } catch (e) {
+      derniereErreur = e;
+      if (!e.passager || essai === ESSAIS_MAX) break;
+      await pause(2000 * essai);
+    }
   }
 
-  const parts = (data.candidates && data.candidates[0] && data.candidates[0].content.parts) || [];
-  const texte = parts.map(p => p.text || '').join('');
-  const trouve = texte.match(/-1|0|1/);
-  if (!trouve) throw new Error(`Réponse inattendue : ${texte}`);
-  return parseInt(trouve[0], 10);
+  throw derniereErreur || new Error('Temps imparti épuisé avant la fin des notations');
 }
 
 module.exports = async (req, res) => {
@@ -82,6 +130,7 @@ module.exports = async (req, res) => {
     const database = await connectDB();
 
     const dateStr = dateJourFini();
+    const fin = Date.now() + BUDGET_TOTAL_MS;
 
     // 1. Lire les articles déjà filtrés par mots clés
     const sourceName = `${dateStr}_rssfiltremotscles`;
@@ -96,7 +145,7 @@ module.exports = async (req, res) => {
       const notes = await Promise.all(
         lot.map(async (art) => {
           try {
-            const valeur = await noterArticle(art.titre, art.article);
+            const valeur = await noterArticle(art.titre, art.article, fin);
             const { _id, ...reste } = art;
             return { ...reste, favorable: valeur };
           } catch (e) {
@@ -107,10 +156,19 @@ module.exports = async (req, res) => {
           }
         })
       );
-      resultats.push(...notes.filter(n => n !== null));
+      resultats.push(...notes.filter((n) => n !== null));
     }
 
-    // 3. Enregistrer (collection vidée avant, pour éviter les doublons)
+    // 3. Échec total : on le signale sans effacer la collection existante
+    if (articles.length > 0 && resultats.length === 0) {
+      return res.status(502).json({
+        success: false,
+        message: `Aucun article noté sur ${articles.length}. Première erreur : ${premiereErreur}`,
+        premiereErreur: premiereErreur
+      });
+    }
+
+    // 4. Enregistrer (collection vidée avant, pour éviter les doublons)
     const destName = `${dateStr}_rssfiltreia`;
     const destCollection = database.collection(destName);
     await destCollection.deleteMany({});
