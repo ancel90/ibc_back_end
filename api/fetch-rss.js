@@ -26,6 +26,17 @@ function dateJourFini() {
   return veille.toISOString().slice(0, 10).replace(/-/g, '');
 }
 
+// Vrai si l'article a été publié dans les dernières 24 heures
+// (articles sans date, avec une date invalide ou datés du futur : refusés)
+function estRecent(item, maintenant) {
+  const brut = item.isoDate || item.pubDate;
+  if (!brut) return false;
+  const date = new Date(brut);
+  if (isNaN(date.getTime())) return false;
+  const age = maintenant - date.getTime();
+  return age >= 0 && age <= 24 * 60 * 60 * 1000;
+}
+
 // Liste des flux : adresse, nom du média, pays émetteur
 const FEEDS = [
   { url: 'https://www.lemonde.fr/rss/une.xml', source: 'Le Monde', pays: 'france' },
@@ -49,13 +60,18 @@ module.exports = async (req, res) => {
     const database = await connectDB();
 
     const dateStr = dateJourFini();
+    const maintenant = Date.now();
 
     let articles = [];
+    let lus = 0;
 
     for (const flux of FEEDS) {
       const feed = await parser.parseURL(flux.url);
 
       for (const item of feed.items) {
+        lus++;
+        if (!estRecent(item, maintenant)) continue;
+
         articles.push({
           date: dateStr,
           source: flux.source,
@@ -63,6 +79,7 @@ module.exports = async (req, res) => {
           titre: item.title || '',
           lien: item.link || '',
           article: item.contentSnippet || item.content || '',
+          publie_le: new Date(item.isoDate || item.pubDate).toISOString(),
           favorable: 0
         });
       }
@@ -71,15 +88,15 @@ module.exports = async (req, res) => {
     const collectionName = `${dateStr}_rssbrut`;
     const collection = database.collection(collectionName);
 
-    // On remplace le contenu du jour (pas de doublons)
+    // On remplace le contenu du jour (pas de doublons), même s'il n'y a aucun article récent
+    await collection.deleteMany({});
     if (articles.length > 0) {
-      await collection.deleteMany({});
       await collection.insertMany(articles);
     }
 
     return res.status(200).json({
       success: true,
-      message: `${articles.length} articles enregistrés avec succès`,
+      message: `${articles.length} articles de moins de 24 h enregistrés (sur ${lus} lus)`,
       collection: collectionName
     });
 
