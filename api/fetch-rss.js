@@ -1,5 +1,9 @@
 const Parser = require('rss-parser');
-const parser = new Parser();
+const parser = new Parser({
+  customFields: {
+    item: [['dc:date', 'dcDate']]
+  }
+});
 const { MongoClient } = require('mongodb');
 
 const uri = process.env.MONGODB_URI;
@@ -26,13 +30,19 @@ function dateJourFini() {
   return veille.toISOString().slice(0, 10).replace(/-/g, '');
 }
 
+// Date de publication d'un article (selon le format du flux), ou null
+function datePublication(item) {
+  const brut = item.isoDate || item.pubDate || item.dcDate;
+  if (!brut) return null;
+  const date = new Date(brut);
+  return isNaN(date.getTime()) ? null : date;
+}
+
 // Vrai si l'article a été publié dans les dernières 24 heures
 // (articles sans date, avec une date invalide ou datés du futur : refusés)
 function estRecent(item, maintenant) {
-  const brut = item.isoDate || item.pubDate;
-  if (!brut) return false;
-  const date = new Date(brut);
-  if (isNaN(date.getTime())) return false;
+  const date = datePublication(item);
+  if (!date) return false;
   const age = maintenant - date.getTime();
   return age >= 0 && age <= 24 * 60 * 60 * 1000;
 }
@@ -41,7 +51,11 @@ function estRecent(item, maintenant) {
 const FEEDS = [
   { url: 'https://www.lemonde.fr/rss/une.xml', source: 'Le Monde', pays: 'france' },
   { url: 'https://www.lefigaro.fr/rss/figaro_actualites.xml', source: 'Le Figaro', pays: 'france' },
-  { url: 'https://rss.rtbf.be/article/rss/highlight_rtbf_info.xml?source=internal', source: 'RTBF', pays: 'belgique' }
+  { url: 'https://rss.rtbf.be/article/rss/highlight_rtbf_info.xml?source=internal', source: 'RTBF', pays: 'belgique' },
+  { url: 'https://lanticapitaliste.org/rss.xml', source: "L'Anticapitaliste", pays: 'france' },
+  { url: 'https://www.mvtpaix.org/wordpress/feed/', source: 'Mouvement de la Paix', pays: 'france' },
+  { url: 'https://www.fnlp.fr/feed/', source: 'FNLP', pays: 'france' },
+  { url: 'https://basta.media/spip.php?page=backend', source: 'Basta', pays: 'france' }
 ];
 
 module.exports = async (req, res) => {
@@ -79,7 +93,7 @@ module.exports = async (req, res) => {
           titre: item.title || '',
           lien: item.link || '',
           article: item.contentSnippet || item.content || '',
-          publie_le: new Date(item.isoDate || item.pubDate).toISOString(),
+          publie_le: datePublication(item).toISOString(),
           favorable: 0
         });
       }
