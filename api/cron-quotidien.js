@@ -3,6 +3,9 @@ const { MongoClient } = require('mongodb');
 const uri = process.env.MONGODB_URI;
 let cachedDb = null;
 
+// Adresse principale du back-end (si le domaine change, modifier cette ligne)
+const BASE = 'https://ibcbackend.vercel.app';
+
 async function connectDB() {
   if (cachedDb) return cachedDb;
   const client = new MongoClient(uri);
@@ -22,7 +25,6 @@ function heureParis() {
 
 module.exports = async (req, res) => {
   const debut = Date.now();
-  const base = `https://${req.headers.host}`;
   const etapes = ['fetch-rss', 'filtremotscles', 'filtreia', 'resume'];
   const rapport = [];
 
@@ -45,14 +47,38 @@ module.exports = async (req, res) => {
   }
 
   for (const etape of etapes) {
+    const t0 = Date.now();
     try {
-      const reponse = await fetch(`${base}/api/${etape}`);
-      const data = await reponse.json();
+      const reponse = await fetch(`${BASE}/api/${etape}`);
+      const texte = await reponse.text();
+
+      let data = null;
+      try {
+        data = JSON.parse(texte);
+      } catch (e) {
+        data = null;
+      }
+
+      if (!data) {
+        rapport.push({
+          etape,
+          ok: false,
+          duree_ms: Date.now() - t0,
+          message: `Réponse non JSON (HTTP ${reponse.status}) : ${texte.slice(0, 200)}`
+        });
+        break;
+      }
+
       const ok = reponse.ok && data.success === true;
-      rapport.push({ etape, ok, message: data.message || data.error });
+      rapport.push({
+        etape,
+        ok,
+        duree_ms: Date.now() - t0,
+        message: data.message || data.error
+      });
       if (!ok) break;
     } catch (e) {
-      rapport.push({ etape, ok: false, message: e.message });
+      rapport.push({ etape, ok: false, duree_ms: Date.now() - t0, message: e.message });
       break;
     }
   }
