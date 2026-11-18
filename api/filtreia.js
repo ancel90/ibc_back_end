@@ -90,6 +90,7 @@ module.exports = async (req, res) => {
     // 2. Noter chaque article (5 à la fois)
     const resultats = [];
     let erreurs = 0;
+    let premiereErreur = null;
     for (let i = 0; i < articles.length; i += 5) {
       const lot = articles.slice(i, i + 5);
       const notes = await Promise.all(
@@ -101,6 +102,7 @@ module.exports = async (req, res) => {
           } catch (e) {
             console.error(e.message);
             erreurs++;
+            if (!premiereErreur) premiereErreur = e.message;
             return null;
           }
         })
@@ -119,7 +121,8 @@ module.exports = async (req, res) => {
     return res.status(200).json({
       success: true,
       message: `${resultats.length} articles notés sur ${articles.length} (${erreurs} erreurs)`,
-      collection: destName
+      collection: destName,
+      premiereErreur: premiereErreur
     });
 
   } catch (error) {
