@@ -47,15 +47,16 @@ function estRecent(item, maintenant) {
   return age >= 0 && age <= 24 * 60 * 60 * 1000;
 }
 
-// Liste des flux : adresse, nom du média, pays émetteur
+// Liste des flux : adresse, nom du média, pays émetteur, type de média
+// Types possibles : flux_rss, site_web, newsletter, facebook, bluesky, telegram, vkontakte
 const FEEDS = [
-  { url: 'https://www.lemonde.fr/rss/une.xml', source: 'Le Monde', pays: 'france' },
-  { url: 'https://www.lefigaro.fr/rss/figaro_actualites.xml', source: 'Le Figaro', pays: 'france' },
-  { url: 'https://rss.rtbf.be/article/rss/highlight_rtbf_info.xml?source=internal', source: 'RTBF', pays: 'belgique' },
-  { url: 'https://lanticapitaliste.org/rss.xml', source: "L'Anticapitaliste", pays: 'france' },
-  { url: 'https://www.mvtpaix.org/wordpress/feed/', source: 'Mouvement de la Paix', pays: 'france' },
-  { url: 'https://www.fnlp.fr/feed/', source: 'FNLP', pays: 'france' },
-  { url: 'https://basta.media/spip.php?page=backend', source: 'Basta', pays: 'france' }
+  { url: 'https://www.lemonde.fr/rss/une.xml', source: 'Le Monde', pays: 'france', type: 'flux_rss' },
+  { url: 'https://www.lefigaro.fr/rss/figaro_actualites.xml', source: 'Le Figaro', pays: 'france', type: 'flux_rss' },
+  { url: 'https://rss.rtbf.be/article/rss/highlight_rtbf_info.xml?source=internal', source: 'RTBF', pays: 'belgique', type: 'flux_rss' },
+  { url: 'https://lanticapitaliste.org/rss.xml', source: "L'Anticapitaliste", pays: 'france', type: 'flux_rss' },
+  { url: 'https://www.mvtpaix.org/wordpress/feed/', source: 'Mouvement de la Paix', pays: 'france', type: 'flux_rss' },
+  { url: 'https://www.fnlp.fr/feed/', source: 'FNLP', pays: 'france', type: 'flux_rss' },
+  { url: 'https://basta.media/spip.php?page=backend', source: 'Basta', pays: 'france', type: 'flux_rss' }
 ];
 
 module.exports = async (req, res) => {
@@ -90,6 +91,7 @@ module.exports = async (req, res) => {
           date: dateStr,
           source: flux.source,
           pays: flux.pays,
+          type: flux.type,
           titre: item.title || '',
           lien: item.link || '',
           article: item.contentSnippet || item.content || '',
