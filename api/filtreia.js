@@ -1,4 +1,5 @@
 const { MongoClient } = require('mongodb');
+const { acces } = require('../lib/securite');
 
 const uri = process.env.MONGODB_URI;
 const geminiKey = process.env.GEMINI_API_KEY;
@@ -157,6 +158,9 @@ module.exports = async (req, res) => {
     res.status(200).end();
     return;
   }
+
+  // Accès réservé : le code secret est obligatoire (cette route coûte de l'argent)
+  if (!acces(req, res)) return;
 
   try {
     if (!geminiKey) {

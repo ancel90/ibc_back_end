@@ -1,4 +1,5 @@
 const { MongoClient } = require('mongodb');
+const { acces } = require('../lib/securite');
 
 const uri = process.env.MONGODB_URI;
 let cachedDb = null;
@@ -43,6 +44,9 @@ module.exports = async (req, res) => {
     res.status(200).end();
     return;
   }
+
+  // Accès réservé : le code secret est obligatoire
+  if (!acces(req, res)) return;
 
   try {
     const database = await connectDB();

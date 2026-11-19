@@ -1,4 +1,5 @@
 const { MongoClient } = require('mongodb');
+const { acces } = require('../lib/securite');
 
 const uri = process.env.MONGODB_URI;
 let cachedDb = null;
@@ -24,6 +25,9 @@ function heureParis() {
 }
 
 module.exports = async (req, res) => {
+  // Accès réservé : le code secret est obligatoire
+  if (!acces(req, res)) return;
+
   const debut = Date.now();
   const etapes = ['fetch-rss', 'filtremotscles', 'filtreia', 'resume'];
   const rapport = [];
@@ -49,7 +53,9 @@ module.exports = async (req, res) => {
   for (const etape of etapes) {
     const t0 = Date.now();
     try {
-      const reponse = await fetch(`${BASE}/api/${etape}`);
+      const reponse = await fetch(`${BASE}/api/${etape}`, {
+        headers: { Authorization: `Bearer ${process.env.CRON_SECRET}` }
+      });
       const texte = await reponse.text();
 
       let data = null;
