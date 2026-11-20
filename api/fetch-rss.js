@@ -92,18 +92,6 @@ function typeParDefaut(cle) {
   return 'flux_rss';
 }
 
-// Liste des flux : adresse, nom du média, pays émetteur, type de média
-// Types possibles : flux_rss, site_web, newsletter, facebook, bluesky, telegram, vkontakte
-const FEEDS = [
-  { url: 'https://www.lemonde.fr/rss/une.xml', source: 'Le Monde', pays: 'france', type: 'flux_rss' },
-  { url: 'https://www.lefigaro.fr/rss/figaro_actualites.xml', source: 'Le Figaro', pays: 'france', type: 'flux_rss' },
-  { url: 'https://rss.rtbf.be/article/rss/highlight_rtbf_info.xml?source=internal', source: 'RTBF', pays: 'belgique', type: 'flux_rss' },
-  { url: 'https://lanticapitaliste.org/rss.xml', source: "L'Anticapitaliste", pays: 'france', type: 'flux_rss' },
-  { url: 'https://www.mvtpaix.org/wordpress/feed/', source: 'Mouvement de la Paix', pays: 'france', type: 'flux_rss' },
-  { url: 'https://www.fnlp.fr/feed/', source: 'FNLP', pays: 'france', type: 'flux_rss' },
-  { url: 'https://basta.media/spip.php?page=backend', source: 'Basta', pays: 'france', type: 'flux_rss' }
-];
-
 module.exports = async (req, res) => {
   // Gestion CORS
   res.setHeader('Access-Control-Allow-Credentials', true);
@@ -120,88 +108,68 @@ module.exports = async (req, res) => {
   if (!acces(req, res)) return;
 
   try {
+    // Adresse du flux Inoreader (secrète, stockée dans les variables Vercel)
+    const adresseInoreader = process.env.INOREADER_FEED_URL;
+    if (!adresseInoreader) {
+      return res.status(500).json({ success: false, error: 'INOREADER_FEED_URL manquante dans Vercel' });
+    }
+
     const database = await connectDB();
 
     const dateStr = dateJourFini();
     const maintenant = Date.now();
 
-    let articles = [];
-    let lus = 0;
+    // Table de correspondance : source -> nom, pays, type
+    const table = await database.collection('sources').find({}).toArray();
+    const sources = new Map(table.map(s => [s.cle, s]));
 
-    // 1) Flux en dur (anciens flux)
-    for (const flux of FEEDS) {
-      const feed = await parser.parseURL(flux.url);
-
-      for (const item of feed.items) {
-        lus++;
-        if (!estRecent(item, maintenant)) continue;
-
-        articles.push({
-          date: dateStr,
-          source: flux.source,
-          pays: flux.pays,
-          type: flux.type,
-          titre: item.title || '',
-          lien: item.link || '',
-          article: item.contentSnippet || item.content || '',
-          publie_le: datePublication(item).toISOString(),
-          favorable: 0
-        });
-      }
+    // Lecture du flux Inoreader : en cas d'échec, on s'arrête sans rien effacer
+    let feed;
+    try {
+      feed = await parser.parseURL(adresseInoreader);
+    } catch (e) {
+      const erreur = String(e.message || e).split(adresseInoreader).join('[adresse masquée]');
+      console.error('Inoreader :', erreur);
+      return res.status(502).json({ success: false, error: `Inoreader : ${erreur}` });
     }
 
-    // 2) Flux Inoreader (adresse secrète stockée dans les variables Vercel)
-    const adresseInoreader = process.env.INOREADER_FEED_URL;
-    let inoreaderRetenus = 0;
-    let erreurInoreader = null;
+    let articles = [];
+    let lus = 0;
     const inconnues = new Map(); // sources absentes de la table "sources"
     const connues = new Set(); // sources présentes dans la table "sources"
 
-    if (adresseInoreader) {
-      try {
-        const table = await database.collection('sources').find({}).toArray();
-        const sources = new Map(table.map(s => [s.cle, s]));
-        const feed = await parser.parseURL(adresseInoreader);
+    for (const item of feed.items) {
+      lus++;
+      if (!estRecent(item, maintenant)) continue;
 
-        for (const item of feed.items) {
-          lus++;
-          if (!estRecent(item, maintenant)) continue;
+      const { cle, titre } = identifierSource(item);
+      const fiche = sources.get(cle);
 
-          const { cle, titre } = identifierSource(item);
-          const fiche = sources.get(cle);
-
-          if (fiche) {
-            connues.add(cle);
-          } else {
-            const inconnue = inconnues.get(cle) || {
-              cle,
-              type: typeParDefaut(cle),
-              nombre: 0,
-              exemple_titre: titre,
-              exemple_lien: item.link || ''
-            };
-            inconnue.nombre++;
-            inconnues.set(cle, inconnue);
-          }
-
-          articles.push({
-            date: dateStr,
-            source: fiche ? fiche.nom : cle,
-            pays: fiche ? fiche.pays : 'inconnu',
-            type: fiche ? fiche.type : typeParDefaut(cle),
-            titre,
-            lien: item.link || '',
-            article: item.contentSnippet || item.content || '',
-            publie_le: datePublication(item).toISOString(),
-            favorable: 0
-          });
-          inoreaderRetenus++;
-        }
-      } catch (e) {
-        // Une panne d'Inoreader ne doit pas bloquer les autres flux ; l'adresse est masquée
-        erreurInoreader = String(e.message || e).split(adresseInoreader).join('[adresse masquée]');
-        console.error('Inoreader :', erreurInoreader);
+      if (fiche) {
+        connues.add(cle);
+      } else {
+        const inconnue = inconnues.get(cle) || {
+          cle,
+          type: typeParDefaut(cle),
+          nombre: 0,
+          exemple_titre: titre,
+          exemple_lien: item.link || ''
+        };
+        inconnue.nombre++;
+        inconnues.set(cle, inconnue);
       }
+
+      articles.push({
+        date: dateStr,
+        source: fiche ? fiche.nom : cle,
+        pays: fiche ? fiche.pays : 'inconnu',
+        type: fiche ? fiche.type : typeParDefaut(cle),
+        titre,
+        lien: item.link || '',
+        article: item.contentSnippet || item.content || '',
+        publie_le: datePublication(item).toISOString(),
+        favorable: 0
+      });
     }
 
     const collectionName = `${dateStr}_rssbrut`;
@@ -241,9 +209,7 @@ module.exports = async (req, res) => {
     }
 
     let message = `${articles.length} articles de moins de 24 h enregistrés (sur ${lus} lus)`;
-    if (adresseInoreader) message += `, dont ${inoreaderRetenus} via Inoreader`;
     if (inconnues.size > 0) message += `, ${inconnues.size} source(s) à classer`;
-    if (erreurInoreader) message += ` ; ERREUR Inoreader : ${erreurInoreader}`;
 
     return res.status(200).json({
       success: true,
