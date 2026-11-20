@@ -98,7 +98,18 @@ async function noterLot(lot, fin) {
 
   const prompt =
     "Tu es un analyste de veille médiatique. Pour chacun des articles numérotés ci-dessous, " +
-    "détermine s'il est défavorable (-1), neutre (0) ou favorable (1) pour les armées françaises. " +
+    "détermine l'attitude de l'article envers quatre sujets : " +
+    "les armées françaises, " +
+    "la coalition européenne (par exemple la coalition des volontaires qui soutient l'Ukraine), " +
+    "la France (y compris son président et son gouvernement), " +
+    "et les intérêts français. " +
+    "Donne une seule note par article : " +
+    "favorable (1) si l'article présente au moins l'un de ces sujets de façon positive ou le défend, " +
+    "sans en attaquer un autre ; " +
+    "défavorable (-1) si l'article critique, dénigre ou est hostile à au moins l'un de ces sujets ; " +
+    "neutre (0) si l'article ne parle pas de ces sujets, n'en parle que de façon factuelle ou incidente, " +
+    "ou si les points de vue se compensent. " +
+    "Les articles peuvent être écrits en français, en anglais, en roumain ou en russe. " +
     "Réponds uniquement par une liste JSON de nombres, dans l'ordre des articles, " +
     "par exemple [0,1,-1]. Aucun autre texte.\n\n" +
     lignes;
