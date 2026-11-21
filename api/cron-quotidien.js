@@ -7,13 +7,9 @@ let cachedDb = null;
 // Adresse principale du back-end (si le domaine change, modifier cette ligne)
 const BASE = 'https://ibcbackend.vercel.app';
 
-// Étapes de la chaîne. "critique : false" = si elle échoue, on continue jusqu'au résumé.
-const ETAPES = [
-  { nom: 'fetch-rss', critique: true },
-  { nom: 'filtremotscles', critique: true },
-  { nom: 'filtreia', critique: false },
-  { nom: 'resume', critique: true }
-];
+// Étapes de la chaîne quotidienne : récupération des articles, puis filtre par mots clés.
+// La notation par l'IA et le résumé sont lancés depuis le site (route mise-a-jour).
+const ETAPES = ['fetch-rss', 'filtremotscles'];
 
 async function connectDB() {
   if (cachedDb) return cachedDb;
@@ -59,10 +55,8 @@ module.exports = async (req, res) => {
 
   for (const etape of ETAPES) {
     const t0 = Date.now();
-    let ok = false;
-
     try {
-      const reponse = await fetch(`${BASE}/api/${etape.nom}`, {
+      const reponse = await fetch(`${BASE}/api/${etape}`, {
         headers: { Authorization: `Bearer ${process.env.CRON_SECRET}` }
       });
       const texte = await reponse.text();
@@ -76,35 +70,31 @@ module.exports = async (req, res) => {
 
       if (!data) {
         rapport.push({
-          etape: etape.nom,
+          etape,
           ok: false,
           duree_ms: Date.now() - t0,
           message: `Réponse non JSON (HTTP ${reponse.status}) : ${texte.slice(0, 200)}`
         });
-      } else {
-        ok = reponse.ok && data.success === true;
-        rapport.push({
-          etape: etape.nom,
-          ok,
-          duree_ms: Date.now() - t0,
-          message: data.message || data.error
-        });
+        break;
       }
-    } catch (e) {
-      rapport.push({ etape: etape.nom, ok: false, duree_ms: Date.now() - t0, message: e.message });
-    }
 
-    // Une étape critique en échec arrête la chaîne ; les autres, non
-    if (!ok && etape.critique) break;
+      const ok = reponse.ok && data.success === true;
+      rapport.push({
+        etape,
+        ok,
+        duree_ms: Date.now() - t0,
+        message: data.message || data.error
+      });
+      if (!ok) break;
+    } catch (e) {
+      rapport.push({ etape, ok: false, duree_ms: Date.now() - t0, message: e.message });
+      break;
+    }
   }
 
-  // Statut final : succes, partiel (seule filtreia a échoué) ou echec
-  const echecs = rapport.filter(r => !r.ok).map(r => r.etape);
-  const complet = rapport.length === ETAPES.length;
-  let statut;
-  if (complet && echecs.length === 0) statut = 'succes';
-  else if (complet && echecs.every(nom => nom === 'filtreia')) statut = 'partiel';
-  else statut = 'echec';
+  // Statut final : succes si toutes les étapes ont réussi, sinon echec
+  const succes = rapport.length === ETAPES.length && rapport.every(r => r.ok);
+  const statut = succes ? 'succes' : 'echec';
 
   // Journal : mise à jour finale
   if (journal && idJournal) {
@@ -118,5 +108,5 @@ module.exports = async (req, res) => {
     }
   }
 
-  return res.status(200).json({ success: statut === 'succes', statut, rapport });
+  return res.status(200).json({ success: succes, statut, rapport });
 };
