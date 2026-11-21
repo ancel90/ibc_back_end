@@ -1,77 +1,85 @@
 {
-    "version": 2,
-    "builds": [
-      {
-        "src": "index.js",
-        "use": "@vercel/node"
-      },
-      {
-        "src": "api/fetch-rss.js",
-        "use": "@vercel/node"
-      },
-      {
-        "src": "api/filtremotscles.js",
-        "use": "@vercel/node"
-      },
-      {
-        "src": "api/filtreia.js",
-        "use": "@vercel/node"
-      },
-      {
-        "src": "api/resume.js",
-        "use": "@vercel/node"
-      },
-      {
-        "src": "api/resumes.js",
-        "use": "@vercel/node"
-      },
-      {
-        "src": "api/publications.js",
-        "use": "@vercel/node"
-      },
-      {
-        "src": "api/cron-quotidien.js",
-        "use": "@vercel/node"
-      }
-    ],
-    "routes": [
-      {
-        "src": "/api/fetch-rss",
-        "dest": "/api/fetch-rss.js"
-      },
-      {
-        "src": "/api/filtremotscles",
-        "dest": "/api/filtremotscles.js"
-      },
-      {
-        "src": "/api/filtreia",
-        "dest": "/api/filtreia.js"
-      },
-      {
-        "src": "/api/resume",
-        "dest": "/api/resume.js"
-      },
-      {
-        "src": "/api/resumes",
-        "dest": "/api/resumes.js"
-      },
-      {
-        "src": "/api/publications",
-        "dest": "/api/publications.js"
-      },
-      {
-        "src": "/api/cron-quotidien",
-        "dest": "/api/cron-quotidien.js"
-      },
-      {
-        "src": "/(.*)",
-        "dest": "index.js"
-      }
-    ],
-    "crons": [
-      {
-        "path": "/api/cron-quotidien",
-        "schedule": "0 23 * * *"
-      }
-    ]
+  "version": 2,
+  "builds": [
+    {
+      "src": "index.js",
+      "use": "@vercel/node"
+    },
+    {
+      "src": "api/fetch-rss.js",
+      "use": "@vercel/node"
+    },
+    {
+      "src": "api/filtremotscles.js",
+      "use": "@vercel/node"
+    },
+    {
+      "src": "api/filtreia.js",
+      "use": "@vercel/node"
+    },
+    {
+      "src": "api/resume.js",
+      "use": "@vercel/node"
+    },
+    {
+      "src": "api/resumes.js",
+      "use": "@vercel/node"
+    },
+    {
+      "src": "api/publications.js",
+      "use": "@vercel/node"
+    },
+    {
+      "src": "api/cron-quotidien.js",
+      "use": "@vercel/node"
+    },
+    {
+      "src": "api/etat.js",
+      "use": "@vercel/node"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/api/fetch-rss",
+      "dest": "/api/fetch-rss.js"
+    },
+    {
+      "src": "/api/filtremotscles",
+      "dest": "/api/filtremotscles.js"
+    },
+    {
+      "src": "/api/filtreia",
+      "dest": "/api/filtreia.js"
+    },
+    {
+      "src": "/api/resume",
+      "dest": "/api/resume.js"
+    },
+    {
+      "src": "/api/resumes",
+      "dest": "/api/resumes.js"
+    },
+    {
+      "src": "/api/publications",
+      "dest": "/api/publications.js"
+    },
+    {
+      "src": "/api/cron-quotidien",
+      "dest": "/api/cron-quotidien.js"
+    },
+    {
+      "src": "/api/etat",
+      "dest": "/api/etat.js"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "index.js"
+    }
+  ],
+  "crons": [
+    {
+      "path": "/api/cron-quotidien",
+      "schedule": "0 23 * * *"
+    }
+  ]
 }
