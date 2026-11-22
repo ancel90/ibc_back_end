@@ -14,10 +14,6 @@
       "use": "@vercel/node"
     },
     {
-      "src": "api/filtreia.js",
-      "use": "@vercel/node"
-    },
-    {
       "src": "api/resume.js",
       "use": "@vercel/node"
     },
@@ -62,10 +58,6 @@
     {
       "src": "/api/filtremotscles",
       "dest": "/api/filtremotscles.js"
-    },
-    {
-      "src": "/api/filtreia",
-      "dest": "/api/filtreia.js"
     },
     {
       "src": "/api/resume",
