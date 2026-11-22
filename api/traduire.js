@@ -1,4 +1,5 @@
 const { MongoClient } = require('mongodb');
+const { accesUtilisateur } = require('../lib/securite');
 
 const uri = process.env.MONGODB_URI;
 const geminiKey = process.env.GEMINI_API_KEY;
@@ -85,7 +86,8 @@ module.exports = async (req, res) => {
   // Gestion CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST,OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.setHeader('Cache-Control', 'no-store');
 
   if (req.method === 'OPTIONS') {
     res.status(200).end();
@@ -94,6 +96,9 @@ module.exports = async (req, res) => {
   if (req.method !== 'POST') {
     return res.status(405).json({ success: false, error: 'Méthode non autorisée' });
   }
+
+  // Accès réservé : jeton de connexion obligatoire (cette route coûte de l'argent)
+  if (!accesUtilisateur(req, res)) return;
 
   try {
     if (!geminiKey) {

@@ -1,4 +1,5 @@
 const { MongoClient } = require('mongodb');
+const { accesUtilisateur } = require('../lib/securite');
 
 const uri = process.env.MONGODB_URI;
 let cachedDb = null;
@@ -16,12 +17,16 @@ module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Credentials', true);
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'X-Requested-With, Accept, Content-Type');
+  res.setHeader('Access-Control-Allow-Headers', 'X-Requested-With, Accept, Content-Type, Authorization');
+  res.setHeader('Cache-Control', 'no-store');
 
   if (req.method === 'OPTIONS') {
     res.status(200).end();
     return;
   }
+
+  // Accès réservé : jeton de connexion obligatoire
+  if (!accesUtilisateur(req, res)) return;
 
   try {
     const database = await connectDB();

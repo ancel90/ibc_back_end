@@ -1,4 +1,5 @@
 const { MongoClient } = require('mongodb');
+const { accesUtilisateur } = require('../lib/securite');
 const { calculerResume } = require('../lib/calcul-resume');
 
 const uri = process.env.MONGODB_URI;
@@ -289,13 +290,16 @@ module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Credentials', true);
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'X-Requested-With, Accept, Content-Type');
+  res.setHeader('Access-Control-Allow-Headers', 'X-Requested-With, Accept, Content-Type, Authorization');
   res.setHeader('Cache-Control', 'no-store');
 
   if (req.method === 'OPTIONS') {
     res.status(200).end();
     return;
   }
+
+  // Accès réservé : jeton de connexion obligatoire (cette route coûte de l'argent)
+  if (!accesUtilisateur(req, res)) return;
 
   let database = null;
   let verrouPris = false;
@@ -307,8 +311,11 @@ module.exports = async (req, res) => {
 
     database = await connectDB();
 
-    // 1. État des 30 derniers jours (route etat) : on cherche le jour le plus récent à traiter
-    const reponseEtat = await fetch(`${BASE}/api/etat?jours=30`);
+    // 1. État des 30 derniers jours (route etat, appelée avec le secret interne du serveur) :
+    //    on cherche le jour le plus récent à traiter
+    const reponseEtat = await fetch(`${BASE}/api/etat?jours=30`, {
+      headers: { Authorization: `Bearer ${process.env.CRON_SECRET}` }
+    });
     const etat = await reponseEtat.json();
     if (!etat.success) {
       throw new Error('La route etat a échoué');
