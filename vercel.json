@@ -14,10 +14,6 @@
       "use": "@vercel/node"
     },
     {
-      "src": "api/resume.js",
-      "use": "@vercel/node"
-    },
-    {
       "src": "api/resumes.js",
       "use": "@vercel/node"
     },
@@ -48,6 +44,10 @@
     {
       "src": "api/traduire.js",
       "use": "@vercel/node"
+    },
+    {
+      "src": "api/connexion.js",
+      "use": "@vercel/node"
     }
   ],
   "routes": [
@@ -58,10 +58,6 @@
     {
       "src": "/api/filtremotscles",
       "dest": "/api/filtremotscles.js"
-    },
-    {
-      "src": "/api/resume",
-      "dest": "/api/resume.js"
     },
     {
       "src": "/api/resumes",
@@ -94,6 +90,10 @@
     {
       "src": "/api/traduire",
       "dest": "/api/traduire.js"
+    },
+    {
+      "src": "/api/connexion",
+      "dest": "/api/connexion.js"
     },
     {
       "src": "/(.*)",
