@@ -40,6 +40,10 @@
     {
       "src": "api/mise-a-jour.js",
       "use": "@vercel/node"
+    },
+    {
+      "src": "api/nettoyage.js",
+      "use": "@vercel/node"
     }
   ],
   "routes": [
@@ -78,6 +82,10 @@
     {
       "src": "/api/mise-a-jour",
       "dest": "/api/mise-a-jour.js"
+    },
+    {
+      "src": "/api/nettoyage",
+      "dest": "/api/nettoyage.js"
     },
     {
       "src": "/(.*)",

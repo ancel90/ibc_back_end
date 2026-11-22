@@ -7,9 +7,14 @@ let cachedDb = null;
 // Adresse principale du back-end (si le domaine change, modifier cette ligne)
 const BASE = 'https://ibcbackend.vercel.app';
 
-// Étapes de la chaîne quotidienne : récupération des articles, puis filtre par mots clés.
+// Étapes de la chaîne quotidienne : récupération des articles, filtre par mots clés, puis nettoyage.
 // La notation par l'IA et le résumé sont lancés depuis le site (route mise-a-jour).
-const ETAPES = ['fetch-rss', 'filtremotscles'];
+// "critique : false" = si l'étape échoue, la nuit n'est pas considérée comme échouée.
+const ETAPES = [
+  { nom: 'fetch-rss', critique: true },
+  { nom: 'filtremotscles', critique: true },
+  { nom: 'nettoyage', critique: false }
+];
 
 async function connectDB() {
   if (cachedDb) return cachedDb;
@@ -55,8 +60,10 @@ module.exports = async (req, res) => {
 
   for (const etape of ETAPES) {
     const t0 = Date.now();
+    let ok = false;
+
     try {
-      const reponse = await fetch(`${BASE}/api/${etape}`, {
+      const reponse = await fetch(`${BASE}/api/${etape.nom}`, {
         headers: { Authorization: `Bearer ${process.env.CRON_SECRET}` }
       });
       const texte = await reponse.text();
@@ -70,31 +77,35 @@ module.exports = async (req, res) => {
 
       if (!data) {
         rapport.push({
-          etape,
+          etape: etape.nom,
           ok: false,
           duree_ms: Date.now() - t0,
           message: `Réponse non JSON (HTTP ${reponse.status}) : ${texte.slice(0, 200)}`
         });
-        break;
+      } else {
+        ok = reponse.ok && data.success === true;
+        rapport.push({
+          etape: etape.nom,
+          ok,
+          duree_ms: Date.now() - t0,
+          message: data.message || data.error
+        });
       }
-
-      const ok = reponse.ok && data.success === true;
-      rapport.push({
-        etape,
-        ok,
-        duree_ms: Date.now() - t0,
-        message: data.message || data.error
-      });
-      if (!ok) break;
     } catch (e) {
-      rapport.push({ etape, ok: false, duree_ms: Date.now() - t0, message: e.message });
-      break;
+      rapport.push({ etape: etape.nom, ok: false, duree_ms: Date.now() - t0, message: e.message });
     }
+
+    // Une étape critique en échec arrête la chaîne ; les autres, non
+    if (!ok && etape.critique) break;
   }
 
-  // Statut final : succes si toutes les étapes ont réussi, sinon echec
-  const succes = rapport.length === ETAPES.length && rapport.every(r => r.ok);
-  const statut = succes ? 'succes' : 'echec';
+  // Statut final : succes, partiel (seul le nettoyage a échoué) ou echec
+  const echecs = rapport.filter((r) => !r.ok).map((r) => r.etape);
+  const complet = rapport.length === ETAPES.length;
+  let statut;
+  if (complet && echecs.length === 0) statut = 'succes';
+  else if (complet && echecs.every((nom) => nom === 'nettoyage')) statut = 'partiel';
+  else statut = 'echec';
 
   // Journal : mise à jour finale
   if (journal && idJournal) {
@@ -108,5 +119,5 @@ module.exports = async (req, res) => {
     }
   }
 
-  return res.status(200).json({ success: succes, statut, rapport });
+  return res.status(200).json({ success: statut === 'succes', statut, rapport });
 };

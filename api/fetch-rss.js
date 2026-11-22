@@ -10,6 +10,9 @@ const { acces } = require('../lib/securite');
 const uri = process.env.MONGODB_URI;
 let cachedDb = null;
 
+// Nombre de caractères du texte de chaque article conservés en base
+const LONGUEUR_ARTICLE = 1000;
+
 async function connectDB() {
   if (cachedDb) return cachedDb;
   const client = new MongoClient(uri);
@@ -29,6 +32,12 @@ function dateJourFini() {
   const [annee, mois, jour] = aujourdhui.split('-').map(Number);
   const veille = new Date(Date.UTC(annee, mois - 1, jour - 1));
   return veille.toISOString().slice(0, 10).replace(/-/g, '');
+}
+
+// Raccourcit un texte trop long
+function couper(texte, max) {
+  const t = String(texte || '').trim();
+  return t.length > max ? t.slice(0, max).trimEnd() + '…' : t;
 }
 
 // Date de publication d'un article (selon le format du flux), ou null
@@ -166,7 +175,7 @@ module.exports = async (req, res) => {
         type: fiche ? fiche.type : typeParDefaut(cle),
         titre,
         lien: item.link || '',
-        article: item.contentSnippet || item.content || '',
+        article: couper(item.contentSnippet || item.content, LONGUEUR_ARTICLE),
         publie_le: datePublication(item).toISOString(),
         favorable: 0
       });
