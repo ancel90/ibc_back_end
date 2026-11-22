@@ -48,6 +48,10 @@
     {
       "src": "api/nuage.js",
       "use": "@vercel/node"
+    },
+    {
+      "src": "api/traduire.js",
+      "use": "@vercel/node"
     }
   ],
   "routes": [
@@ -94,6 +98,10 @@
     {
       "src": "/api/nuage",
       "dest": "/api/nuage.js"
+    },
+    {
+      "src": "/api/traduire",
+      "dest": "/api/traduire.js"
     },
     {
       "src": "/(.*)",
