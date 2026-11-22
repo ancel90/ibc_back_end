@@ -9,13 +9,16 @@ const MODELE = 'gemini-3.5-flash';
 const BASE = 'https://ibcbackend.vercel.app';
 
 // Réglages
-const TAILLE_LOT = 10;          // articles notés par requête Gemini
-const MAX_PAR_APPEL = 30;       // articles notés par appel de cette route (3 requêtes en parallèle)
-const DELAI_APPEL_MS = 25000;   // durée maximale d'une requête Gemini
-const BUDGET_TOTAL_MS = 40000;  // durée maximale pour noter un paquet
-const ESSAIS_MAX = 3;           // essais par lot (erreurs passagères seulement)
-const LONGUEUR_EXTRAIT = 600;   // caractères de l'article envoyés à Gemini
-const DUREE_VERROU_MS = 60000;  // durée du verrou (libéré dès la fin du travail)
+const TAILLE_LOT = 10;            // articles notés ou traduits par requête Gemini
+const MAX_PAR_APPEL = 30;         // articles notés par appel de cette route (3 requêtes en parallèle)
+const DELAI_APPEL_MS = 25000;     // durée maximale d'une requête Gemini
+const BUDGET_TOTAL_MS = 40000;    // durée maximale pour noter un paquet
+const BUDGET_TRADUCTION_MS = 20000; // durée maximale pour traduire les articles du paquet
+const ESSAIS_MAX = 3;             // essais par lot (erreurs passagères seulement)
+const LONGUEUR_EXTRAIT = 600;     // caractères de l'article envoyés à Gemini pour la notation
+const LONGUEUR_TRADUCTION = 400;  // caractères de l'article envoyés à Gemini pour la traduction
+const LONGUEUR_EXTRAIT_FR = 300;  // caractères conservés pour l'extrait traduit
+const DUREE_VERROU_MS = 60000;    // durée du verrou (libéré dès la fin du travail)
 
 let cachedDb = null;
 
@@ -68,13 +71,14 @@ async function libererVerrou(database) {
   );
 }
 
-// Un appel à Gemini, avec une durée maximale
-async function appelGemini(prompt, delaiMs, reflexionBasse) {
+// Un appel à Gemini, avec une durée maximale (json = true : réponse demandée en JSON)
+async function appelGemini(prompt, delaiMs, reflexionBasse, json) {
   const controleur = new AbortController();
   const minuteur = setTimeout(() => controleur.abort(), delaiMs);
 
   const config = { temperature: 0 };
   if (reflexionBasse) config.thinkingConfig = { thinkingLevel: 'low' };
+  if (json) config.responseMimeType = 'application/json';
 
   try {
     const reponse = await fetch(
@@ -147,7 +151,7 @@ async function noterLot(lot, fin) {
     if (reste < 3000) break;
 
     try {
-      const data = await appelGemini(prompt, Math.min(DELAI_APPEL_MS, reste), reflexionBasse);
+      const data = await appelGemini(prompt, Math.min(DELAI_APPEL_MS, reste), reflexionBasse, false);
 
       const parts =
         (data.candidates && data.candidates[0] && data.candidates[0].content &&
@@ -181,6 +185,103 @@ async function noterLot(lot, fin) {
   }
 
   throw derniereErreur || new Error('Temps imparti épuisé avant la fin des notations');
+}
+
+// Détecte la langue d'un groupe d'articles et les traduit en français
+// quand ils ne sont ni en français ni en anglais.
+// Renvoie une liste d'objets { langue, titre_fr, extrait_fr } dans l'ordre des articles.
+async function traduireLot(lot, fin) {
+  const lignes = lot
+    .map((art, i) => `${i + 1}. Titre : ${art.titre}\nTexte : ${couper(art.article, LONGUEUR_TRADUCTION)}`)
+    .join('\n\n');
+
+  const prompt =
+    "Pour chacun des articles numérotés ci-dessous : " +
+    "1) donne le code ISO 639-1 de la langue de l'article (par exemple fr, en, ro, ru, hu, sr, bg, uk, tr) ; " +
+    "2) si la langue n'est ni le français (fr) ni l'anglais (en), traduis en français le titre et le texte " +
+    `(le texte traduit ne dépasse pas ${LONGUEUR_EXTRAIT_FR} caractères) ; ` +
+    "sinon, mets null pour titre_fr et pour extrait_fr. " +
+    "Réponds uniquement par un tableau JSON d'objets, dans l'ordre des articles, " +
+    'de la forme {"langue":"ro","titre_fr":"...","extrait_fr":"..."}. Aucun autre texte.\n\n' +
+    lignes;
+
+  let reflexionBasse = true;
+  let derniereErreur = null;
+
+  for (let essai = 1; essai <= ESSAIS_MAX; essai++) {
+    const reste = fin - Date.now();
+    if (reste < 3000) break;
+
+    try {
+      const data = await appelGemini(prompt, Math.min(DELAI_APPEL_MS, reste), reflexionBasse, true);
+
+      const parts =
+        (data.candidates && data.candidates[0] && data.candidates[0].content &&
+          data.candidates[0].content.parts) || [];
+      const texte = parts.map((p) => p.text || '').join('');
+
+      let traductions;
+      try {
+        traductions = JSON.parse(texte);
+      } catch (e) {
+        const liste = texte.match(/\[[\s\S]*\]/);
+        if (!liste) throw new Error(`Réponse inattendue : ${texte}`);
+        traductions = JSON.parse(liste[0]);
+      }
+
+      if (!Array.isArray(traductions) || traductions.length !== lot.length ||
+          !traductions.every((t) => t && typeof t.langue === 'string')) {
+        throw new Error(`Réponse inattendue : ${texte}`);
+      }
+      return traductions;
+    } catch (e) {
+      derniereErreur = e;
+      // Si le réglage de réflexion est refusé, on réessaie sans lui
+      if (e.statut === 400 && /think/i.test(e.message) && reflexionBasse) {
+        reflexionBasse = false;
+        continue;
+      }
+      if (!e.passager || essai === ESSAIS_MAX) break;
+      await pause(2000 * essai);
+    }
+  }
+
+  throw derniereErreur || new Error('Temps imparti épuisé avant la fin des traductions');
+}
+
+// Ajoute langue, titre_fr et extrait_fr aux articles notés +1 ou -1.
+// Un échec de traduction ne bloque rien : l'article est simplement enregistré sans traduction.
+async function ajouterTraductions(resultats, fin) {
+  const aTraduire = resultats.filter((art) => art.favorable === 1 || art.favorable === -1);
+  if (aTraduire.length === 0) return { traduits: 0, erreur: null };
+
+  const lots = [];
+  for (let i = 0; i < aTraduire.length; i += TAILLE_LOT) {
+    lots.push(aTraduire.slice(i, i + TAILLE_LOT));
+  }
+  const reponses = await Promise.allSettled(lots.map((lot) => traduireLot(lot, fin)));
+
+  let traduits = 0;
+  let erreur = null;
+  reponses.forEach((r, i) => {
+    if (r.status === 'fulfilled') {
+      lots[i].forEach((art, k) => {
+        const t = r.value[k];
+        art.langue = t.langue.toLowerCase();
+        if (typeof t.titre_fr === 'string' && t.titre_fr.trim() !== '') {
+          art.titre_fr = t.titre_fr.trim();
+          if (typeof t.extrait_fr === 'string' && t.extrait_fr.trim() !== '') {
+            art.extrait_fr = couper(t.extrait_fr, LONGUEUR_EXTRAIT_FR);
+          }
+          traduits++;
+        }
+      });
+    } else if (!erreur) {
+      erreur = r.reason && r.reason.message ? r.reason.message : String(r.reason);
+    }
+  });
+
+  return { traduits, erreur };
 }
 
 module.exports = async (req, res) => {
@@ -281,7 +382,10 @@ module.exports = async (req, res) => {
       });
     }
 
-    // 5. Ajouter les notes (sans effacer les articles déjà notés), puis recalculer le résumé du jour
+    // 5. Traduction en français des articles favorables et défavorables (hors français et anglais)
+    const traduction = await ajouterTraductions(resultats, Date.now() + BUDGET_TRADUCTION_MS);
+
+    // 6. Ajouter les notes (sans effacer les articles déjà notés), puis recalculer le résumé du jour
     if (resultats.length > 0) {
       await database.collection(`${jour.date}_rssfiltreia`).insertMany(resultats, { ordered: false });
     }
@@ -295,6 +399,8 @@ module.exports = async (req, res) => {
       termine: joursRestants === 0,
       jour: jour.date,
       notes_ajoutes: resultats.length,
+      traduits: traduction.traduits,
+      erreur_traduction: traduction.erreur,
       restant_jour: restantJour,
       jours_a_traiter: joursRestants,
       jours_bloques: bloques,
