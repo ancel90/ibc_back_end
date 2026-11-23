@@ -1,5 +1,5 @@
 const { MongoClient } = require('mongodb');
-const { accesUtilisateur } = require('../lib/securite');
+const { accesUtilisateur, cors } = require('../lib/securite');
 
 const uri = process.env.MONGODB_URI;
 let cachedDb = null;
@@ -49,19 +49,12 @@ function couper(texte, max) {
 }
 
 module.exports = async (req, res) => {
-  // Gestion CORS
-  res.setHeader('Access-Control-Allow-Credentials', true);
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'X-Requested-With, Accept, Content-Type, Authorization');
   // Réponse gardée 10 minutes dans le navigateur du visiteur seulement (jamais dans un cache partagé,
   // sinon la connexion serait contournée)
   res.setHeader('Cache-Control', 'private, max-age=600');
 
-  if (req.method === 'OPTIONS') {
-    res.status(200).end();
-    return;
-  }
+  // Gestion CORS : seul le site de la Chouette est autorisé
+  if (cors(req, res)) return;
 
   // Accès réservé : jeton de connexion obligatoire
   if (!accesUtilisateur(req, res)) return;

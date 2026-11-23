@@ -1,20 +1,14 @@
-const { memeTexte, creerJeton } = require('../lib/securite');
+const { memeTexte, creerJeton, cors } = require('../lib/securite');
 
 const PAUSE_ECHEC_MS = 1000; // attente avant de répondre à un mauvais mot de passe
 
 const pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 module.exports = async (req, res) => {
-  // Gestion CORS
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST,OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  // Gestion CORS : seul le site de la Chouette est autorisé
   res.setHeader('Cache-Control', 'no-store');
+  if (cors(req, res)) return;
 
-  if (req.method === 'OPTIONS') {
-    res.status(200).end();
-    return;
-  }
   if (req.method !== 'POST') {
     return res.status(405).json({ success: false, error: 'Méthode non autorisée' });
   }

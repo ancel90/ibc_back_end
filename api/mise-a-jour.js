@@ -1,5 +1,5 @@
 const { MongoClient } = require('mongodb');
-const { accesUtilisateur } = require('../lib/securite');
+const { accesUtilisateur, cors } = require('../lib/securite');
 const { calculerResume } = require('../lib/calcul-resume');
 
 const uri = process.env.MONGODB_URI;
@@ -286,17 +286,9 @@ async function ajouterTraductions(resultats, fin) {
 }
 
 module.exports = async (req, res) => {
-  // Gestion CORS
-  res.setHeader('Access-Control-Allow-Credentials', true);
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'X-Requested-With, Accept, Content-Type, Authorization');
+  // Gestion CORS : seul le site de la Chouette est autorisé
   res.setHeader('Cache-Control', 'no-store');
-
-  if (req.method === 'OPTIONS') {
-    res.status(200).end();
-    return;
-  }
+  if (cors(req, res)) return;
 
   // Accès réservé : jeton de connexion obligatoire (cette route coûte de l'argent)
   if (!accesUtilisateur(req, res)) return;

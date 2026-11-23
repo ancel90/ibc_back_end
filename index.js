@@ -4,7 +4,9 @@ const { MongoClient } = require('mongodb');
 require('dotenv').config();
 
 const app = express();
-app.use(cors());
+
+// Seul le site de la Chouette est autorisé à appeler l'API depuis un navigateur
+app.use(cors({ origin: 'https://ibcfrontend.vercel.app' }));
 
 const uri = process.env.MONGODB_URI;
 const client = new MongoClient(uri);
