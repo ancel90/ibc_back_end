@@ -7,12 +7,11 @@ let cachedDb = null;
 // Adresse principale du back-end (si le domaine change, modifier cette ligne)
 const BASE = 'https://ibcbackend.vercel.app';
 
-// Étapes de la chaîne quotidienne : récupération des articles, filtre par mots clés, puis nettoyage.
+// Étapes de la chaîne quotidienne : récupération des articles (déjà filtrés par Inoreader), puis nettoyage.
 // La notation par l'IA et le résumé sont lancés depuis le site (route mise-a-jour).
 // "critique : false" = si l'étape échoue, la nuit n'est pas considérée comme échouée.
 const ETAPES = [
   { nom: 'fetch-rss', critique: true },
-  { nom: 'filtremotscles', critique: true },
   { nom: 'nettoyage', critique: false }
 ];
 

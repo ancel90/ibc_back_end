@@ -10,10 +10,6 @@
       "use": "@vercel/node"
     },
     {
-      "src": "api/filtremotscles.js",
-      "use": "@vercel/node"
-    },
-    {
       "src": "api/resumes.js",
       "use": "@vercel/node"
     },
@@ -54,10 +50,6 @@
     {
       "src": "/api/fetch-rss",
       "dest": "/api/fetch-rss.js"
-    },
-    {
-      "src": "/api/filtremotscles",
-      "dest": "/api/filtremotscles.js"
     },
     {
       "src": "/api/resumes",

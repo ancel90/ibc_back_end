@@ -181,13 +181,21 @@ module.exports = async (req, res) => {
       });
     }
 
+    // Les articles sont déjà filtrés par les requêtes d'Inoreader : on les enregistre
+    // dans les deux collections du jour (brut, et "retenus" lue par le reste du site).
+    // On remplace le contenu du jour (pas de doublons), même s'il n'y a aucun article récent.
     const collectionName = `${dateStr}_rssbrut`;
     const collection = database.collection(collectionName);
+    const collectionRetenus = database.collection(`${dateStr}_rssfiltremotscles`);
 
-    // On remplace le contenu du jour (pas de doublons), même s'il n'y a aucun article récent
+    // Copies distinctes pour la 2e collection (chaque insertion ajoute son propre identifiant)
+    const copies = articles.map(a => ({ ...a }));
+
     await collection.deleteMany({});
+    await collectionRetenus.deleteMany({});
     if (articles.length > 0) {
       await collection.insertMany(articles);
+      await collectionRetenus.insertMany(copies);
     }
 
     // Liste des sources à classer : on note les inconnues, on retire celles désormais connues
