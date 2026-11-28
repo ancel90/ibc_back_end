@@ -44,6 +44,10 @@
     {
       "src": "api/connexion.js",
       "use": "@vercel/node"
+    },
+    {
+      "src": "api/reprise-bibliotheque.js",
+      "use": "@vercel/node"
     }
   ],
   "routes": [
@@ -86,6 +90,10 @@
     {
       "src": "/api/connexion",
       "dest": "/api/connexion.js"
+    },
+    {
+      "src": "/api/reprise-bibliotheque",
+      "dest": "/api/reprise-bibliotheque.js"
     },
     {
       "src": "/(.*)",
